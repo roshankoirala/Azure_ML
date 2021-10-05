@@ -1,0 +1,6 @@
+name: py_env 
+dependencies:
+- pandas 
+- scikit-learn 
+- pip:
+    - azureml-defaults
