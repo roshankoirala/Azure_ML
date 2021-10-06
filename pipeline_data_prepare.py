@@ -1,30 +1,34 @@
 import os 
-import argparse
-from azureml.core import Run 
+import numpy as np
+import pandas as pd
+from argparse import ArgumentParser 
+from azureml.core import Run
 
-# Parse the input argument 
-parser = argparse.ArgumentParser()
-parser.add_argument('--out_folder', type=str, dest='out_folder')
+new_run = Run.get_context()
+ws = new_run.experiment.workspace
+
+df = new_run.input_datasets['raw_data'].to_pandas_dataframe()
+data_prep = df[['PL', 'SW', 'y']]
+
+# Get the arguments from pipeline job 
+parser = ArgumentParser()
+parser.add_argument('--datafolder', type=str)
 args = parser.parse_args()
-output_folder = args.out_folder
 
-# Get the raw data 
-run = Run.get_context()
-raw_df = run.input_df['raw_data'].to_pandas_dataframe()
+# Create the folder if it does not exist 
+os.makedirs(args.datafolder, exist_ok=True)
+path = os.path.join(args.datafolder, 'output_preprocess.csv')
 
-# Do preprocessing 
-# Insert pickle preprocessing files here???
-select_cols = ['PL', 'SW', 'y']
-prep_df = raw_df[select_cols]
+# Write output of preprocess as a csv file 
+data_prep.to_csv(path, index=False)
 
-# Save the preprocessed data 
-os.makedirs(output_folder, exist_ok=True)
-output_path = os.path.join(output_folder, 'preprocessed_data.csv')
-prep_df.to_csv(output_path)
+# Log preprpcessing keypoints 
+data_mean = data_prep.mean()
+for col in data_prep.columns:
+    new_run.log(col, data_mean[col])
 
-# Log head of the data, shape of the data, column names, summary statistics table 
-# what else should be logged??? 
-run.log('Shape of data', prep_df.shape())
+# complete 
+new_run.complete()
 
-# Complete the run 
-run.complete()
+
+

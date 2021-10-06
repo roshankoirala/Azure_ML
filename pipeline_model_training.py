@@ -1,39 +1,48 @@
 import os 
-import argparse
 import pandas as pd
 from azureml.core import Run
-from sklearn.ensemble import RandomForestClassifier 
+from argparse import ArgumentParser 
+
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix, f1_score
 
-# Parse the input argument 
-parser = argparse.ArgumentParser()
-parser.add_argument('--out_folder', type=str, dest='out_folder')
+# Setup azure 
+parser = ArgumentParser()
+parser.add_argument('--datafolder', type=str)
 args = parser.parse_args()
-output_folder = args.out_folder
 
 # Access the data from the output of the preprocessing 
-path = os.path.join(output_folder, 'preprocessed_data.csv')
-prep_df = pd.read_csv(path)
+path = os.path.join(args.datafolder, 'output_preprocess.csv')
+data_prep = pd.read_csv(path)
 
-X = prep_df.copy()
-y = prep_df.pop('y')
+X = data_prep.copy()
+y = data_prep.pop('y')
 
 # train the model 
-model = RandomForestClassifier()
+model = LogisticRegression(solver='newton-cg')
 model.fit(X, y)
-score = model.score(X, y)
 
 y_pred = model.predict(X)
+y_pred_proba = model.predict_proba(X)[:, 1]
+
+score = model.score(X, y)
 cm = confusion_matrix(y, y_pred)
 f1score = f1_score(y.values, y_pred, average='macro')
-prep_df['Labels'] = y_pred
 
-# Log 
-run = Run.get_context()
-run.log('Confusion Matrix', cm)
-run.log('Accuracy Score', score)
-run.log('F1 Score', f1score)
+data_prep['Labels'] = y_pred
+data_prep['Labels_Proba'] = y_pred_proba
+
+# Log in AzureML 
+new_run = Run.get_context()
+ws = new_run.experiment.workspace
+
+new_run.log('Total Observations', len(data_prep))
+new_run.log('Confusion Matrix', cm)
+new_run.log('Accuracy Score', score)
+new_run.log('F1 Score', f1score)
 
 data_prep.to_csv('./outputs/prediction_table.csv')
 
 new_run.complete()
+
+
